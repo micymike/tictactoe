@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic-Tac-Toe</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            color: #333;
+        }
+        .game-card {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        #controls {
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        #game {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+            margin-bottom: 20px;
+        }
+        .cell {
+            aspect-ratio: 1;
+            background-color: #90ddf0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 40px;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+        .cell:hover {
+            background-color: #bdc3c7;
+        }
+        .cell.pop {
+            animation: pop 0.3s ease-out;
+        }
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        #status {
+            font-size: 24px;
+            margin-bottom: 20px;
+            font-weight: bold;
+            color: #2c3e50;
+            min-height: 36px;
+        }
+        #level {
+            margin-bottom: 20px;
+        }
+        select {
+            padding: 5px 10px;
+            font-size: 16px;
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-card">
+        <h1>Starlets Tic-Tac-Toe</h1>
+        <div id="controls">
+            <button id="start-btn">Start Game</button>
+            <button id="restart-btn" disabled>Restart Game</button>
+        </div>
+        <div id="level">
+            <label for="difficulty">Choose difficulty: </label>
+            <select id="difficulty">
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+            </select>
+        </div>
+        <div id="status"></div>
+        <div id="game"></div>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            const game = document.getElementById('game');
+            const statusDiv = document.getElementById('status');
+            const levelSelect = document.getElementById('difficulty');
+            const startBtn = document.getElementById('start-btn');
+            const restartBtn = document.getElementById('restart-btn');
+
+            // Create the game board
+            for (let i = 0; i < 3; i++) {
+                for (let j = 0; j < 3; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.setAttribute('data-row', i);
+                    cell.setAttribute('data-col', j);
+                    game.appendChild(cell);
+                }
+            }
+
+            const cells = document.querySelectorAll('.cell');
+
+            startBtn.addEventListener('click', startGame);
+            restartBtn.addEventListener('click', startGame);
+
+            function startGame() {
+                cells.forEach(cell => {
+                    cell.textContent = '';
+                    cell.style.pointerEvents = 'auto';
+                });
+                statusDiv.textContent = '';
+                restartBtn.disabled = false;
+                startBtn.disabled = true;
+
+                $.ajax({
+                    type: 'POST',
+                    url: '/start',
+                    success: function(response) {
+                        updateBoard(response.board);
+                        updateStatus('Your turn!');
+                    },
+                    error: function(error) {
+                        console.error('Error starting the game:', error);
+                    }
+                });
+            }
+
+            cells.forEach(cell => {
+                cell.addEventListener('click', async () => {
+                    if (!cell.textContent && statusDiv.textContent === 'Your turn!') {
+                        const row = parseInt(cell.getAttribute('data-row'));
+                        const col = parseInt(cell.getAttribute('data-col'));
+                        const level = levelSelect.value;
+
+                        const response = await fetch('/move', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({ row: row, col: col, level: level })
+                        });
+
+                        const data = await response.json();
+                        updateBoard(data.board);
+                        updateStatus(data.status);
+                    }
+                });
+            });
+
+            function updateBoard(board) {
+                cells.forEach(cell => {
+                    const row = parseInt(cell.getAttribute('data-row'));
+                    const col = parseInt(cell.getAttribute('data-col'));
+                    if (cell.textContent !== board[row][col]) {
+                        cell.textContent = board[row][col];
+                        if (board[row][col] !== '') {
+                            cell.classList.add('pop');
+                            setTimeout(() => cell.classList.remove('pop'), 300);
+                        }
+                    }
+                });
+            }
+
+            function updateStatus(status) {
+                statusDiv.classList.remove('fade-in');
+                void statusDiv.offsetWidth; // Trigger reflow
+                statusDiv.classList.add('fade-in');
+                
+                switch(status) {
+                    case 'win':
+                        statusDiv.textContent = 'You win!';
+                        endGame();
+                        break;
+                    case 'lose':
+                        statusDiv.textContent = 'You lose!';
+                        endGame();
+                        break;
+                    case 'tie':
+                        statusDiv.textContent = 'It\'s a tie!';
+                        endGame();
+                        break;
+                    case 'invalid':
+                        statusDiv.textContent = 'Invalid move, try again!';
+                        break;
+                    case 'continue':
+                        statusDiv.textContent = 'Your turn!';
+                        break;
+                    default:
+                        statusDiv.textContent = status;
+                }
+            }
+
+            function endGame() {
+                cells.forEach(cell => cell.style.pointerEvents = 'none');
+                startBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
